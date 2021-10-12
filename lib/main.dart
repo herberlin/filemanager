@@ -2,9 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'logger.dart';
+
 void main() {
   runApp(MyApp());
 }
+
+final Logger log = new Logger("main");
 
 class MyApp extends StatelessWidget {
   // This widget is the root of your application.
@@ -13,68 +17,59 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'File Manager',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
+        brightness: Brightness.light,
+        accentColor: Colors.blueGrey,
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: "File Manager"),
+      home: FileManagerPage(title: "File Manager"),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, required this.title}) : super(key: key);
+class FileManagerPage extends StatefulWidget {
+  FileManagerPage({Key? key, required this.title}) : super(key: key);
   final String title;
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _FileManagerPageState createState() => _FileManagerPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class _FileManagerPageState extends State<FileManagerPage> {
+  Directory _currentDirectory = Directory.current;
+  List<_FileListEntry> _folderList = [];
 
   @override
   Widget build(BuildContext context) {
-    final List<String> entries = <String>['A', 'B', 'C'];
-    final List<int> colorCodes = <int>[600, 500, 100];
-
-    Directory _currentDirectory = Directory.current;
-
     return Scaffold(
       appBar: AppBar(
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(8),
-        itemCount: entries.length,
-        itemBuilder: (BuildContext context, int index) {
-          return Container(
-            height: 50,
-            color: Colors.amber[colorCodes[index]],
-            child: Center(child: Text('Entry ${entries[index]}')),
-          );
-        },
-        separatorBuilder: (BuildContext context, int index) => const Divider(),
+      body: Column(
+        children: [
+          Container(
+            alignment: AlignmentDirectional.centerStart,
+            padding: const EdgeInsets.all(8),
+            child: Text(_currentDirectory.path),
+          ),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(8),
+              itemCount: _folderList.length,
+              itemBuilder: (BuildContext context, int index) {
+                _FileListEntry item = _folderList[index];
+                return ListTile(
+                  leading: Icon(item._icon),
+                  title: Text(item._name),
+                  onTap: () => _move(item),
+                );
+              },
+              separatorBuilder: (BuildContext context, int index) =>
+                  const Divider(),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _reload,
@@ -84,5 +79,76 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _reload() {}
+  void _reload() async {
+    Stream<FileSystemEntity> stream = _currentDirectory.list();
+    _folderList.clear();
+    _folderList.add(_FileListEntry(_currentDirectory.parent, isParent: true));
+    await for (var v in stream) {
+      log.debug("Item: ${v}");
+      _folderList.add(_FileListEntry(v));
+    }
+    _folderList.sort((a, b) => _compare(a, b));
+    setState(() {
+      _folderList = _folderList;
+    });
+  }
+
+  int _compare(_FileListEntry a, _FileListEntry b) {
+    int result = b._weight - a._weight;
+    if (result == 0) {
+      result = a._name.compareTo(b._name);
+    }
+    return result;
+  }
+
+  _move(_FileListEntry item) {
+    log.debug("${item}");
+    if (item._fileStat.type == FileSystemEntityType.directory) {
+      _currentDirectory = item._fileSystemEntity as Directory;
+      _reload();
+    }
+  }
+}
+
+class _FileListEntry {
+  FileSystemEntity _fileSystemEntity;
+  late IconData _icon;
+  late String _name;
+  late FileStat _fileStat;
+  late int _weight;
+  bool isParent;
+
+  _FileListEntry(this._fileSystemEntity, {this.isParent = false}) {
+    init();
+  }
+
+  void init() async {
+    await _fileSystemEntity.stat().then((value) => {_fileStat = value});
+
+    switch (_fileStat.type) {
+      case FileSystemEntityType.directory:
+        var pos = _fileSystemEntity.uri.pathSegments.length - 2;
+        if (pos > 0) {
+          _name = _fileSystemEntity.uri.pathSegments[pos];
+        } else {
+          _name = _fileSystemEntity.path;
+        }
+        _icon = Icons.folder;
+        _weight = 2;
+        break;
+      case FileSystemEntityType.file:
+        _name = _fileSystemEntity.uri.pathSegments.last;
+        _icon = Icons.file_present;
+        _weight = 1;
+        break;
+      default:
+        _name = _fileSystemEntity.uri.pathSegments.last;
+        _icon = Icons.list;
+        _weight = 0;
+    }
+    if (isParent) {
+      _icon = Icons.arrow_back;
+      _weight = 10;
+    }
+  }
 }

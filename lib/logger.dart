@@ -3,15 +3,23 @@ class Logger {
 
   Logger(this._name);
 
-  void debug(String msg, [Object? obj = null]) {
+  void debug(String msg, [Object? obj]) {
     _print(Level.debug, msg, obj);
   }
 
-  void error(String msg, [Object? obj = null]) {
+  void info(String msg, [Object? obj]) {
+    _print(Level.info, msg, obj);
+  }
+
+  void warn(String msg, [Object? obj]) {
+    _print(Level.warn, msg, obj);
+  }
+
+  void error(String msg, [Object? obj]) {
     _print(Level.error, msg, obj);
   }
 
-  void _print(Level level, String msg, [Object? obj = null]) {
+  void _print(Level level, String msg, [Object? obj]) {
     final showDate = false;
     final stackTracePosition = 2;
     void _printPadded(obj) {
@@ -46,7 +54,7 @@ void main() {
   log.debug("TEST", ["eins", "zwei", "drei"]);
   try {
     throw Exception("TEST");
-  } catch (e, st) {
+  } catch (e) {
     log.error("piff", e);
   }
 }

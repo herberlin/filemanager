@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'logger.dart';
+import 'sysutils.dart';
 
 void main() {
   runApp(MyApp());
@@ -80,17 +81,24 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   void _reload() async {
-    Stream<FileSystemEntity> stream = _currentDirectory.list();
-    _folderList.clear();
-    _folderList.add(_FileListEntry(_currentDirectory.parent, isParent: true));
-    await for (var v in stream) {
-      log.debug("Item: ${v}");
-      _folderList.add(_FileListEntry(v));
+    try {
+      Stream<FileSystemEntity> stream = _currentDirectory.list();
+      _folderList.clear();
+      _folderList.add(await _FileListEntry.create(_currentDirectory.parent,
+          isParent: true));
+      await for (var v in stream) {
+        log.debug("Item: ${v}");
+        _folderList.add(await _FileListEntry.create(v));
+      }
+      _folderList.sort((a, b) => _compare(a, b));
+      setState(() {
+        _folderList = _folderList;
+      });
+    } catch (e) {
+      log.error("Error getting files for ${_currentDirectory}", e);
+      _currentDirectory = Directory(Sysutils.getUserHome());
+      log.debug("CurrentDir set to ${_currentDirectory}");
     }
-    _folderList.sort((a, b) => _compare(a, b));
-    setState(() {
-      _folderList = _folderList;
-    });
   }
 
   int _compare(_FileListEntry a, _FileListEntry b) {
@@ -115,12 +123,19 @@ class _FileListEntry {
   late IconData _icon;
   late String _name;
   late FileStat _fileStat;
-  late int _weight;
+  int _weight = 0;
   bool isParent;
 
-  _FileListEntry(this._fileSystemEntity, {this.isParent = false}) {
-    init();
+  static Future<_FileListEntry> create(FileSystemEntity fileSystemEntity,
+      {bool isParent = false}) async {
+    var result = _FileListEntry(fileSystemEntity, isParent: isParent);
+    return Future(() {
+      result.init();
+      return result;
+    });
   }
+
+  _FileListEntry(this._fileSystemEntity, {this.isParent = false});
 
   void init() async {
     await _fileSystemEntity.stat().then((value) => {_fileStat = value});

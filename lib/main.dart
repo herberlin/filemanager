@@ -9,8 +9,6 @@ void main() {
   runApp(MyApp());
 }
 
-final Logger log = new Logger("main");
-
 class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
@@ -19,10 +17,10 @@ class MyApp extends StatelessWidget {
       title: 'File Manager',
       theme: ThemeData(
         brightness: Brightness.light,
-        accentColor: Colors.blueGrey,
+        primaryColorDark: Colors.blueGrey,
         primarySwatch: Colors.blue,
       ),
-      home: FileManagerPage(title: "File Manager"),
+      home: FileManagerPage(title: "File Manager Page"),
     );
   }
 }
